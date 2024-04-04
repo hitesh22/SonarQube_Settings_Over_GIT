@@ -6,15 +6,25 @@ import groovy.json.JsonBuilder
 import okhttp3.*
 
 
-def call(String server, String workspace, String gateName, String outputFileName) {
-    _getGateByName(server, workspace, gateName, outputFileName)
+def call(String server, String workspace, String gateName, String outputFileName, String token) {
+    _getGateByName(server, workspace, gateName, outputFileName, token, null, null)
 }
 
+def call(String server, String workspace, String gateName, String outputFileName, String username, String password) {
+    _getGateByName(server, workspace, gateName, outputFileName, null, username, password)
+}
 
-def _getGateByName(String server, String workspace, String gateName, String outputFileName) {
+def _getGateByName(String server, String workspace, String gateName, String outputFileName, String token, String username, String password) {
+    // create the credential of our http request:
+    String credential
+    if (token != "") {                                          // authentication using token
+        credential = Credentials.basic(token, "")
+    } else {                                                    // authentication using username & password
+        credential = Credentials.basic(username, password)
+    }
 
     // get the required quality gate:
-    String gateContent = _getSonarGetResponse(server, "/api/qualitygates/show?name=" + gateName)
+    String gateContent = _getSonarGetResponse(server, credential, "/api/qualitygates/show?name=" + gateName)
     String gateJsonContent = new JsonBuilder(new JsonSlurperClassic().parseText(gateContent)).toPrettyString()
 
     // update the variable 'outputFileName': if it is empty - use 'gateName'
@@ -25,7 +35,6 @@ def _getGateByName(String server, String workspace, String gateName, String outp
 
 }
 
-
 def _createGateFile(String workspace, String jsonContent, String fileName) {
 
     // create quality gate json file:
@@ -33,14 +42,13 @@ def _createGateFile(String workspace, String jsonContent, String fileName) {
 
 }
 
-
 @NonCPS
-def _getSonarGetResponse(String server, String url) {
-
+def _getSonarGetResponse(String server, String credential, String url) {
     // creating the http request:
     OkHttpClient client = new OkHttpClient()
     Request request = new Request.Builder()
             .url(server + url)
+            .header("Authorization", credential)
             .get()
             .build()
     Response response = client.newCall(request).execute()
